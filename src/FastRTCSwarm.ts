@@ -25,7 +25,6 @@ class FastRTCSwarm extends EventEmitter {
 
   private createOfferer() {
     const tmpId = uuid()
-    console.log("make offerer")
     const offeringPeer = new FastRTCPeer({ isOfferer: true, id: tmpId, ...this.peerOptions })
     this.peerSubscribe(offeringPeer)
     this.pendingPeers[tmpId] = offeringPeer
@@ -43,6 +42,7 @@ class FastRTCSwarm extends EventEmitter {
   }
 
   private onPeerDataClose = (peer) => {
+    delete this.peers[peer.id]
     this.emit(DATA_CLOSE, peer)
   }
 
@@ -111,12 +111,15 @@ class FastRTCSwarm extends EventEmitter {
         candidates.forEach((candidate) => {
           answeringPeer.dispatch({ type: CANDIDATE, candidate })
         })
+        this.peers[peerId] = answeringPeer
         break
       case OFFER_REQUEST:
         this.createOfferer()
         break
       case OFFER_ACCEPTED:
-        this.peers[peerId] = this.pendingPeers[id]
+        const persistedPeer = this.pendingPeers[id]
+        persistedPeer.id = peerId
+        this.peers[peerId] = persistedPeer
         delete this.pendingPeers[id]
         break
       case ANSWER:

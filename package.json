@@ -68,6 +68,7 @@
   "devDependencies": {
     "@types/jest": "^22.0.0",
     "@types/node": "^10.0.3",
+    "@types/webrtc": "^0.0.23",
     "@types/ws": "^5.1.2",
     "awesome-typescript-loader": "^5.2.0",
     "colors": "^1.1.2",
