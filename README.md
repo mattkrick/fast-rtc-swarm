@@ -13,42 +13,46 @@ If you'd like to connect more than 2 peers, you're on your own.
 That's why this exists.
 It uses a full mesh (vs. partial mesh) network so every client is connected to every other client.
 A full mesh is great for up to ~100 connections.
-After that, you'll probably want to move to a partial mesh & trade a little latency for memory
+After that, you'll probably want to move to a partial mesh & trade a little latency for memory.
 
 ## How's it different from webrtc-swarm?
 
 fast-rtc-swarm is different.
-- The signaling server doesn't have to be server sent events. It can be anything (reference implementation is websockets)
-- It doesn't bother the signaling server with a heartbeat. The swarm can give us that info.
-- It only connects to 1 signaling server (IMO multiple servers is a proxy problem, not a client problem)
-- No unauthenticated-by-default signaling server CLI, It's forcing you to implement your own in hopes you implement auth.
-- No multiplexing streams. If you need a new data channel, open another one natively, not with expensive streams.
+- It's built on fast-rtc-peer, which is built on the new WebRTC v1.0 spec.
+- The signaling server doesn't have to be server sent events. It can be anything (reference implementation is WebSockets)
+- It doesn't bother the signaling server with a heartbeat. We can derive that info from the swarm. 
+If timeouts are an issue, then add a WebSocket#ping on your server. Don't make the client do more work than necessary!
+- It only connects to 1 signaling server. Multiple servers is a proxy problem. Again, don't make the client work hard!
+- No unauthenticated-by-default signaling server CLI. I'm not gonna make it easier for you to write an insecure server :-)
+- No multiplexing streams. If you need a new data channel, open another one natively, not with expensive (and LARGE) stream packages.
 - It uses the fast-rtc protocol for the fastest connection possible
 
 ## What makes it so fast?
 
-the fast-rtc normally completes a WebRTC handshake in only 2 round trips. 
-Most other implementations take 3 (or even 4!)
+The fast-rtc protocol completes a WebRTC handshake in only 2 round trips. 
+Other implementations take 3 (or even 4!)
 It does this by keeping a 1-length cache of offers and candidates.
 Think of it like "pay-it-forward". 
-You pay for the coffee for the person behind you, so they buy the coffee of the person behind them.
+You buy the person behind you a coffee, so they get a coffee when they get to register & buy the person behind them a coffee.
+_To make connecting media even faster, use WebRTC v1.0 transceivers to open a stream before the handshake completes._
 
 Here's how it works:
 
 Alice is the first peer to join the swarm:
 - She gives the server an OFFER that can be used by the next person to join
-- As CANDIDATES trickle in, she forwards those to the signaling server
+- As CANDIDATES trickle in, she forwards them to the server
 - If the OFFER has been accepted, the server forwards the CANDIDATE to them, else it stores it with her OFFER
 - When someone takes her OFFER, the server REQUESTS another from her
 
 When Bob joins the swarm:
-- He follows the same protocol as Alice
+- He follows the same procedure as Alice
 - He takes all the unclaimed OFFERS and CANDIDATES on the server
+- If Alice does not have an OFFER readily available, Bob puts his name on her waiting list
 - On the client, Bob creates an ANSWER to each OFFER and forwards it to the signaling server
 - The signaling server forwards Bob's ANSWER to Alice
 - Alice uses Bob's ANSWER to initiate the connection
 
-That's it! See `server.js` for a reference implementation or an example below to see how to add it to your own server.
+That's it! See `server.js` for a reference implementation and the example below to see how to add it to your own server.
 
 ## Usage
 

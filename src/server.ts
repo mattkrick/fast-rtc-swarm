@@ -1,63 +1,72 @@
-import { INIT, OFFER_REQUEST, OFFER_ACCEPTED } from './constants'
+import { INIT, OFFER_ACCEPTED, OFFER_REQUEST } from './constants'
+import { OFFER, ANSWER, CANDIDATE } from '@mattkrick/fast-rtc-peer'
 
-// Payloads (importing from fast-rtc-peer into a server env is a headache)
-const OFFER = 'offer'
-const ANSWER = 'answer'
-const CANDIDATE = 'candidate'
-
-const sendAnswer = (ws, from, sdp) => {
-  ws.send(JSON.stringify({
-    type: ANSWER,
-    from,
-    sdp
-  }))
+declare global {
+  interface WebSocket {
+    _uuid: WebSocketID
+    _acceptedOffers: {[offerId: string]: WebSocketID}
+    _offers: Array<CachedOffer>
+    _requestors: Array<WebSocket>
+  }
 }
 
-const sendCandidate = (ws, from, candidate) => {
+const sendAnswer = (ws: WebSocket, from: string, sdp: string): void => {
+  ws.send(
+    JSON.stringify({
+      type: ANSWER,
+      from,
+      sdp
+    })
+  )
+}
+
+const sendCandidate = (ws: WebSocket, from: string, candidate: RTCIceCandidate): void => {
   if (!ws) return
-  ws.send(JSON.stringify({
-    type: CANDIDATE,
-    from,
-    candidate
-  }))
-
+  ws.send(
+    JSON.stringify({
+      type: CANDIDATE,
+      from,
+      candidate
+    })
+  )
 }
 
-const sendOffer = (ws, fromWS, offer) => {
+const sendOffer = (
+  ws: WebSocket,
+  fromWS: WebSocket,
+  offer: {id: string; candidates: Array<RTCIceCandidate>; sdp: string}
+): void => {
   const { id, candidates, sdp } = offer
   const { _uuid: from } = fromWS
-  fromWS.send(JSON.stringify({
-    type: OFFER_ACCEPTED,
-    id,
-    from: ws._uuid
-  }))
+  fromWS.send(
+    JSON.stringify({
+      type: OFFER_ACCEPTED,
+      id,
+      from: ws._uuid
+    })
+  )
   fromWS._acceptedOffers[id] = ws._uuid
-  ws.send(JSON.stringify({
-    type: OFFER,
-    from,
-    sdp,
-    candidates
-  }))
+  ws.send(
+    JSON.stringify({
+      type: OFFER,
+      from,
+      sdp,
+      candidates
+    })
+  )
 }
 
-const requestOffer = (ws) => {
-  ws.send(JSON.stringify({
-    type: OFFER_REQUEST
-  }))
+const requestOffer = (ws: WebSocket): void => {
+  ws.send(
+    JSON.stringify({
+      type: OFFER_REQUEST
+    })
+  )
 }
 
 type WebSocketID = string
 
-interface FastRTCWebSocket {
-  OPEN: string
-  readyState: string
-  _uuid: WebSocketID
-  _acceptedOffers: { [offerId: string]: WebSocketID }
-  _offers: Array<CachedOffer>
-  _requestors: Array<FastRTCWebSocket>
-}
-
-const getClientById = (clients, id) => {
+const getClientById = (clients: Set<WebSocket>, id: WebSocketID): WebSocket | null => {
   for (const client of clients) {
     if (client._uuid === id) return client
   }
@@ -70,7 +79,7 @@ class CachedOffer {
   candidates: Array<RTCIceCandidate>
   isComplete: boolean
 
-  constructor(offerId, sdp) {
+  constructor (offerId: string, sdp: string) {
     this.id = offerId
     this.sdp = sdp
     this.candidates = []
@@ -88,7 +97,7 @@ interface InitPayload {
 interface OfferPayload {
   type: 'offer'
   sdp: string
-  offerId
+  offerId: string
 }
 
 interface CandidatePayload {
@@ -102,21 +111,24 @@ interface AnswerPayload {
   type: 'answer'
   sdp: string
   to: WebSocketID
-
 }
 
 type IncomingPayload = InitPayload | OfferPayload | CandidatePayload | AnswerPayload
 
-const handleOnMessage = (clients: Set<FastRTCWebSocket>, ws: FastRTCWebSocket, payload: IncomingPayload): boolean => {
+const handleOnMessage = (
+  clients: Set<WebSocket>,
+  ws: WebSocket,
+  payload: IncomingPayload
+): boolean => {
   const { type } = payload
-  if (type === INIT) {
-    const { sdp, offerId, from } = payload as InitPayload
+  if (payload.type === INIT) {
+    const { sdp, offerId, from } = payload
     ws._uuid = from
     ws._offers = [new CachedOffer(offerId, sdp)]
     ws._requestors = []
     ws._acceptedOffers = {}
     for (const existingPeer of clients) {
-      if (existingPeer as any === ws || existingPeer.readyState !== ws.OPEN) continue
+      if ((existingPeer as any) === ws || existingPeer.readyState !== ws.OPEN) continue
       const offer = existingPeer._offers.pop()
       if (!offer) {
         existingPeer._requestors.push(ws)
@@ -127,18 +139,18 @@ const handleOnMessage = (clients: Set<FastRTCWebSocket>, ws: FastRTCWebSocket, p
     }
     return true
   }
-  if (type === OFFER) {
-    const { sdp, offerId } = payload as OfferPayload
+  if (payload.type === OFFER) {
+    const { sdp, offerId } = payload
     const offer = new CachedOffer(offerId, sdp)
     const requestor = ws._requestors.pop()
     if (requestor) {
-      sendOffer(requestor, ws._uuid, offer)
+      sendOffer(requestor, ws, offer)
     } else {
       ws._offers.push(offer)
     }
     return true
-  } else if (type === ANSWER) {
-    const { sdp, to } = payload as AnswerPayload
+  } else if (payload.type === ANSWER) {
+    const { sdp, to } = payload
     const client = getClientById(clients, to)
     if (client) {
       delete client._acceptedOffers[to]
@@ -147,7 +159,7 @@ const handleOnMessage = (clients: Set<FastRTCWebSocket>, ws: FastRTCWebSocket, p
     return true
   }
   if (type === CANDIDATE) {
-    const { candidate, offerId, to } = payload as CandidatePayload
+    const { candidate, offerId, to } = payload
     if (candidate) {
       if (offerId) {
         const offer = ws._offers.find(({ id }) => offerId === id)
@@ -157,12 +169,16 @@ const handleOnMessage = (clients: Set<FastRTCWebSocket>, ws: FastRTCWebSocket, p
           // the offer was already picked up by someone, find out who
           const to = ws._acceptedOffers[offerId]
           const client = getClientById(clients, to)
-          sendCandidate(client, ws._uuid, candidate)
+          if (client) {
+            sendCandidate(client, ws._uuid, candidate)
+          }
         }
       } else if (to) {
         // for re-negotiations
         const client = getClientById(clients, to)
-        sendCandidate(client, ws._uuid, candidate)
+        if (client) {
+          sendCandidate(client, ws._uuid, candidate)
+        }
       }
     }
     return true

@@ -116,14 +116,13 @@ const OFFER_ACCEPTED = 'offerAccepted';
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./constants */ "./src/constants.ts");
+/* harmony import */ var _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @mattkrick/fast-rtc-peer */ "@mattkrick/fast-rtc-peer");
+/* harmony import */ var _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__);
 
-// Payloads (importing from fast-rtc-peer into a server env is a headache)
-const OFFER = 'offer';
-const ANSWER = 'answer';
-const CANDIDATE = 'candidate';
+
 const sendAnswer = (ws, from, sdp) => {
     ws.send(JSON.stringify({
-        type: ANSWER,
+        type: _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["ANSWER"],
         from,
         sdp
     }));
@@ -132,7 +131,7 @@ const sendCandidate = (ws, from, candidate) => {
     if (!ws)
         return;
     ws.send(JSON.stringify({
-        type: CANDIDATE,
+        type: _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["CANDIDATE"],
         from,
         candidate
     }));
@@ -147,7 +146,7 @@ const sendOffer = (ws, fromWS, offer) => {
     }));
     fromWS._acceptedOffers[id] = ws._uuid;
     ws.send(JSON.stringify({
-        type: OFFER,
+        type: _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["OFFER"],
         from,
         sdp,
         candidates
@@ -175,7 +174,7 @@ class CachedOffer {
 }
 const handleOnMessage = (clients, ws, payload) => {
     const { type } = payload;
-    if (type === _constants__WEBPACK_IMPORTED_MODULE_0__["INIT"]) {
+    if (payload.type === _constants__WEBPACK_IMPORTED_MODULE_0__["INIT"]) {
         const { sdp, offerId, from } = payload;
         ws._uuid = from;
         ws._offers = [new CachedOffer(offerId, sdp)];
@@ -195,19 +194,19 @@ const handleOnMessage = (clients, ws, payload) => {
         }
         return true;
     }
-    if (type === OFFER) {
+    if (payload.type === _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["OFFER"]) {
         const { sdp, offerId } = payload;
         const offer = new CachedOffer(offerId, sdp);
         const requestor = ws._requestors.pop();
         if (requestor) {
-            sendOffer(requestor, ws._uuid, offer);
+            sendOffer(requestor, ws, offer);
         }
         else {
             ws._offers.push(offer);
         }
         return true;
     }
-    else if (type === ANSWER) {
+    else if (payload.type === _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["ANSWER"]) {
         const { sdp, to } = payload;
         const client = getClientById(clients, to);
         if (client) {
@@ -216,7 +215,7 @@ const handleOnMessage = (clients, ws, payload) => {
         }
         return true;
     }
-    if (type === CANDIDATE) {
+    if (type === _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["CANDIDATE"]) {
         const { candidate, offerId, to } = payload;
         if (candidate) {
             if (offerId) {
@@ -225,16 +224,18 @@ const handleOnMessage = (clients, ws, payload) => {
                     offer.candidates.push(candidate);
                 }
                 else {
-                    // the offer was already picked up by someone, find out who
                     const to = ws._acceptedOffers[offerId];
                     const client = getClientById(clients, to);
-                    sendCandidate(client, ws._uuid, candidate);
+                    if (client) {
+                        sendCandidate(client, ws._uuid, candidate);
+                    }
                 }
             }
             else if (to) {
-                // for re-negotiations
                 const client = getClientById(clients, to);
-                sendCandidate(client, ws._uuid, candidate);
+                if (client) {
+                    sendCandidate(client, ws._uuid, candidate);
+                }
             }
         }
         return true;
@@ -243,6 +244,17 @@ const handleOnMessage = (clients, ws, payload) => {
 };
 /* harmony default export */ __webpack_exports__["default"] = (handleOnMessage);
 
+
+/***/ }),
+
+/***/ "@mattkrick/fast-rtc-peer":
+/*!*******************************************!*\
+  !*** external "@mattkrick/fast-rtc-peer" ***!
+  \*******************************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+module.exports = require("@mattkrick/fast-rtc-peer");
 
 /***/ })
 

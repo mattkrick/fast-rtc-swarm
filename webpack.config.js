@@ -16,7 +16,7 @@ module.exports = [
     resolve: {
       extensions: ['.ts']
     },
-    externals: ['eventemitter3', '@mattkrick/fast-rtc-peer', 'uuid/v4'],
+    externals: ['eventemitter3', '@mattkrick/fast-rtc-peer', 'tslib', 'uuid/v4'],
     module: {
       rules: [
         {
@@ -41,6 +41,7 @@ module.exports = [
     resolve: {
       extensions: ['.ts']
     },
+    externals: ['eventemitter3', '@mattkrick/fast-rtc-peer', 'tslib', 'uuid/v4'],
     module: {
       rules: [
         {

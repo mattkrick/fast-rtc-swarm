@@ -1,4 +1,18 @@
-import FastRTCPeer, { SIGNAL, DATA, DATA_OPEN, DATA_CLOSE, OFFER, ANSWER, CANDIDATE } from '@mattkrick/fast-rtc-peer'
+import FastRTCPeer, {
+  DispatchPayload,
+  DataPayload,
+  SIGNAL,
+  DATA,
+  DATA_OPEN,
+  DATA_CLOSE,
+  OFFER,
+  ANSWER,
+  CANDIDATE,
+  OfferPayload,
+  AnswerPayload,
+  CandidatePayload
+} from '@mattkrick/fast-rtc-peer'
+
 import EventEmitter from 'eventemitter3'
 import uuid from 'uuid/v4'
 import { INIT, OFFER_ACCEPTED, OFFER_REQUEST } from './constants'
@@ -7,14 +21,44 @@ interface Options {
   id?: string
 }
 
+interface SwarmOfferPayload extends OfferPayload {
+  from: string
+  candidates: Array<RTCIceCandidateInit>
+}
+
+interface SwarmOfferRequest {
+  type: 'offerRequest'
+}
+
+interface SwarmOfferAccepted {
+  type: 'offerAccepted'
+  id: string
+  from: string
+}
+
+interface SwarmAnswer extends AnswerPayload {
+  from: string
+}
+
+interface SwarmCandidate extends CandidatePayload {
+  from: string
+}
+
+export type SwarmPayload =
+  | SwarmOfferPayload
+  | SwarmOfferRequest
+  | SwarmOfferAccepted
+  | SwarmAnswer
+  | SwarmCandidate
+
 class FastRTCSwarm extends EventEmitter {
-  peers: { [key: string]: FastRTCPeer } = {}
+  peers: {[key: string]: FastRTCPeer} = {}
   peerOptions: RTCConfiguration
-  pendingPeers: { [key: string]: FastRTCPeer } = {}
+  pendingPeers: {[key: string]: FastRTCPeer} = {}
   me?: string
   isInit: boolean
 
-  constructor(opts?: Options) {
+  constructor (opts?: Options) {
     super()
     const { id, ...peerOptions }: Options = opts || {}
     this.me = id || uuid()
@@ -23,37 +67,36 @@ class FastRTCSwarm extends EventEmitter {
     this.createOfferer()
   }
 
-  private createOfferer() {
+  private createOfferer () {
     const tmpId = uuid()
     const offeringPeer = new FastRTCPeer({ isOfferer: true, id: tmpId, ...this.peerOptions })
     this.peerSubscribe(offeringPeer)
     this.pendingPeers[tmpId] = offeringPeer
   }
 
-  private peerSubscribe(peer) {
+  private peerSubscribe (peer: FastRTCPeer) {
     peer.on(SIGNAL, this.onPeerSignal)
     peer.on(DATA_OPEN, this.onPeerDataOpen)
     peer.on(DATA_CLOSE, this.onPeerDataClose)
     peer.on(DATA, this.onPeerData)
   }
 
-  private onPeerData = (data, peer) => {
+  private onPeerData = (data: DataPayload, peer: FastRTCPeer) => {
     this.emit(DATA, data, peer)
   }
 
-  private onPeerDataClose = (peer) => {
+  private onPeerDataClose = (peer: FastRTCPeer) => {
     delete this.peers[peer.id]
     this.emit(DATA_CLOSE, peer)
   }
 
-  private onPeerDataOpen = (peer) => {
+  private onPeerDataOpen = (peer: FastRTCPeer) => {
     this.emit(DATA_OPEN, peer)
   }
 
-  private onPeerSignal = (signal, peer) => {
-    const { type } = signal
+  private onPeerSignal = (signal: DispatchPayload, peer: FastRTCPeer) => {
     const { id } = peer
-    switch (type) {
+    switch (signal.type) {
       case OFFER:
         if (this.isInit) {
           this.isInit = false
@@ -74,7 +117,7 @@ class FastRTCSwarm extends EventEmitter {
     }
   }
 
-  broadcast(message: string) {
+  broadcast (message: DataPayload) {
     const peerIds = Object.keys(this.peers)
     for (let ii = 0; ii < peerIds.length; ii++) {
       const peerId = peerIds[ii]
@@ -83,7 +126,7 @@ class FastRTCSwarm extends EventEmitter {
     }
   }
 
-  close() {
+  close () {
     const peerIds = Object.keys(this.peers)
     for (let ii = 0; ii < peerIds.length; ii++) {
       const peerId = peerIds[ii]
@@ -100,33 +143,33 @@ class FastRTCSwarm extends EventEmitter {
     this.pendingPeers = {}
   }
 
-  dispatch(payload) {
-    const { id, candidate, candidates = [], from: peerId, sdp, type } = payload
-    const peer = this.peers[peerId]
-    switch (type) {
+  dispatch (payload: SwarmPayload) {
+    switch (payload.type) {
       case OFFER:
-        const answeringPeer = new FastRTCPeer({ id: peerId, ...this.peerOptions })
+        const { candidates, type, sdp } = payload
+        const answeringPeer = new FastRTCPeer({ id: payload.from, ...this.peerOptions })
         this.peerSubscribe(answeringPeer)
         answeringPeer.dispatch({ type, sdp })
         candidates.forEach((candidate) => {
           answeringPeer.dispatch({ type: CANDIDATE, candidate })
         })
-        this.peers[peerId] = answeringPeer
+        this.peers[payload.from] = answeringPeer
         break
       case OFFER_REQUEST:
         this.createOfferer()
         break
       case OFFER_ACCEPTED:
+        const { id } = payload
         const persistedPeer = this.pendingPeers[id]
-        persistedPeer.id = peerId
-        this.peers[peerId] = persistedPeer
+        persistedPeer.id = payload.from
+        this.peers[payload.from] = persistedPeer
         delete this.pendingPeers[id]
         break
       case ANSWER:
-        peer.dispatch({ type, sdp })
+        this.peers[payload.from].dispatch({ type: payload.type, sdp: payload.sdp })
         break
       case CANDIDATE:
-        peer.dispatch({ type, candidate })
+        this.peers[payload.from].dispatch({ type: payload.type, candidate: payload.candidate })
     }
   }
 }
