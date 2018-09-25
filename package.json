@@ -14,9 +14,6 @@
   ],
   "main": "dist/FastRTCSwarm.js",
   "typings": "dist/types/FastRTCSwarm.d.ts",
-  "files": [
-    "dist"
-  ],
   "author": "Matt Krick <matt.krick@gmail.com>",
   "repository": {
     "type": "git",
