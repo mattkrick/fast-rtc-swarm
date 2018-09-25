@@ -1,4 +1,6 @@
 const path = require('path')
+const nodeExternals = require('webpack-node-externals');
+const CleanWebpackPlugin = require('clean-webpack-plugin')
 
 module.exports = [
   {
@@ -16,7 +18,7 @@ module.exports = [
     resolve: {
       extensions: ['.ts']
     },
-    externals: ['eventemitter3', '@mattkrick/fast-rtc-peer', 'tslib', 'uuid/v4'],
+    externals: [nodeExternals()],
     module: {
       rules: [
         {
@@ -24,7 +26,10 @@ module.exports = [
           loader: 'awesome-typescript-loader'
         }
       ]
-    }
+    },
+    plugins: [
+      new CleanWebpackPlugin([path.join(__dirname, 'dist/**/*')])
+    ]
   },
   {
     mode: 'development',
@@ -41,7 +46,7 @@ module.exports = [
     resolve: {
       extensions: ['.ts']
     },
-    externals: ['eventemitter3', '@mattkrick/fast-rtc-peer', 'tslib', 'uuid/v4'],
+    externals: [nodeExternals()],
     module: {
       rules: [
         {
@@ -49,6 +54,9 @@ module.exports = [
           loader: 'awesome-typescript-loader'
         }
       ]
-    }
+    },
+    plugins: [
+      new CleanWebpackPlugin([path.join(__dirname, 'dist/**/*')])
+    ]
   }
 ]

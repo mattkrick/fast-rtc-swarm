@@ -1,189 +1,155 @@
-import { INIT, OFFER_ACCEPTED, OFFER_REQUEST } from './constants'
-import { OFFER, ANSWER, CANDIDATE } from '@mattkrick/fast-rtc-peer'
+import { CandidatePayload, OfferPayload } from '@mattkrick/fast-rtc-peer'
+import { PayloadToClient, PayloadToServer } from './types'
 
 declare global {
   interface WebSocket {
     _uuid: WebSocketID
-    _acceptedOffers: {[offerId: string]: WebSocketID}
-    _offers: Array<CachedOffer>
+    _acceptedOffers: {[connectionId: string]: WebSocketID}
+    _connectionChunks: Array<ConnectionChunk>
     _requestors: Array<WebSocket>
+    _ready: boolean
   }
 }
 
-const sendAnswer = (ws: WebSocket, from: string, sdp: string): void => {
-  ws.send(
-    JSON.stringify({
-      type: ANSWER,
-      from,
-      sdp
-    })
-  )
+class ConnectionChunk {
+  id: string
+  signals: Array<OfferPayload | CandidatePayload>
+
+  constructor (connectionId: string, sdp: string) {
+    this.id = connectionId
+    this.signals = [
+      {
+        type: 'offer',
+        sdp
+      }
+    ]
+  }
 }
 
-const sendCandidate = (ws: WebSocket, from: string, candidate: RTCIceCandidate): void => {
+type Authorize = (from: WebSocket, to: WebSocket) => boolean
+const defaultAuthorize = () => true
+const sendPayload = (ws: WebSocket | undefined | null, payload: PayloadToClient) => {
   if (!ws) return
-  ws.send(
-    JSON.stringify({
-      type: CANDIDATE,
-      from,
-      candidate
-    })
-  )
+  ws.send(JSON.stringify(payload))
 }
 
-const sendOffer = (
-  ws: WebSocket,
-  fromWS: WebSocket,
-  offer: {id: string; candidates: Array<RTCIceCandidate>; sdp: string}
-): void => {
-  const { id, candidates, sdp } = offer
+const sendChunk = (ws: WebSocket, fromWS: WebSocket, connectionChunk: ConnectionChunk): void => {
+  const { id, signals } = connectionChunk
   const { _uuid: from } = fromWS
-  fromWS.send(
-    JSON.stringify({
-      type: OFFER_ACCEPTED,
-      id,
-      from: ws._uuid
-    })
-  )
+  sendPayload(ws, {
+    type: 'accept',
+    signals,
+    from
+  })
+  sendPayload(fromWS, { type: 'offerAccepted', connectionId: id, from: ws._uuid })
+  // TODO GC acceptedOffers periodically here
   fromWS._acceptedOffers[id] = ws._uuid
-  ws.send(
-    JSON.stringify({
-      type: OFFER,
-      from,
-      sdp,
-      candidates
-    })
-  )
-}
-
-const requestOffer = (ws: WebSocket): void => {
-  ws.send(
-    JSON.stringify({
-      type: OFFER_REQUEST
-    })
-  )
 }
 
 type WebSocketID = string
 
-const getClientById = (clients: Set<WebSocket>, id: WebSocketID): WebSocket | null => {
-  for (const client of clients) {
-    if (client._uuid === id) return client
-  }
-  return null
+const getClientById = (clients: Array<WebSocket>, id: WebSocketID): WebSocket | null => {
+  let foundClient: WebSocket | null = null
+  clients.forEach((client) => {
+    if (!foundClient && client._uuid === id) {
+      foundClient = client
+    }
+  })
+  return foundClient
 }
 
-class CachedOffer {
-  id: string
-  sdp: string
-  candidates: Array<RTCIceCandidate>
-  isComplete: boolean
-
-  constructor (offerId: string, sdp: string) {
-    this.id = offerId
-    this.sdp = sdp
-    this.candidates = []
-    this.isComplete = false
-  }
-}
-
-interface InitPayload {
-  type: 'init'
-  sdp: string
-  offerId: string
-  from: WebSocketID
-}
-
-interface OfferPayload {
-  type: 'offer'
-  sdp: string
-  offerId: string
-}
-
-interface CandidatePayload {
-  type: 'candidate'
-  candidate: RTCIceCandidate
-  to?: WebSocketID
-  offerId?: string
-}
-
-interface AnswerPayload {
-  type: 'answer'
-  sdp: string
-  to: WebSocketID
-}
-
-type IncomingPayload = InitPayload | OfferPayload | CandidatePayload | AnswerPayload
-
-const handleOnMessage = (
-  clients: Set<WebSocket>,
+const handleWRTCSignal = (
+  clients: Array<WebSocket>,
   ws: WebSocket,
-  payload: IncomingPayload
+  payload: PayloadToServer,
+  authorize: Authorize = defaultAuthorize
 ): boolean => {
   const { type } = payload
-  if (payload.type === INIT) {
-    const { sdp, offerId, from } = payload
+
+  if (payload.type === 'init') {
+    const { sdp, connectionId, from } = payload
+    // validate `from` is unique
+    const existingClient = getClientById(clients, from)
+    if (existingClient) return true
     ws._uuid = from
-    ws._offers = [new CachedOffer(offerId, sdp)]
+    ws._connectionChunks = [new ConnectionChunk(connectionId, sdp)]
     ws._requestors = []
     ws._acceptedOffers = {}
-    for (const existingPeer of clients) {
-      if ((existingPeer as any) === ws || existingPeer.readyState !== ws.OPEN) continue
-      const offer = existingPeer._offers.pop()
-      if (!offer) {
+    ws._ready = true
+    clients.forEach((existingPeer) => {
+      if (existingPeer === ws || !existingPeer._ready || !authorize(ws, existingPeer)) return
+      const connectionChunk = existingPeer._connectionChunks.pop()
+      if (!connectionChunk) {
         existingPeer._requestors.push(ws)
       } else {
-        sendOffer(ws, existingPeer, offer)
+        sendChunk(ws, existingPeer, connectionChunk)
       }
-      requestOffer(existingPeer)
+      sendPayload(existingPeer, { type: 'offerRequest' })
+    })
+    return true
+  }
+
+  if (payload.type === 'offer') {
+    const { connectionId, sdp, to } = payload
+    if (to) {
+      const client = getClientById(clients, to)
+      if (!client || !authorize(ws, client)) return true
+      sendPayload(client, { type: 'offer', from: ws._uuid, sdp })
+    } else if (connectionId) {
+      const existingChunk = ws._connectionChunks.find(
+        (connectionChunk) => connectionChunk.id === connectionId
+      )
+      if (existingChunk) {
+        // the offer is just a piece of a larger connectionChunk
+        existingChunk.signals.push({ type: 'offer', sdp })
+      } else {
+        const connectionChunk = new ConnectionChunk(connectionId, sdp)
+        const requestor = ws._requestors.pop()
+        if (requestor) {
+          // the offer is part of backlogged connectionChunk
+          sendChunk(requestor, ws, connectionChunk)
+        } else {
+          // the offer is eagerly supplied for the next visitor
+          ws._connectionChunks.push(connectionChunk)
+        }
+      }
     }
     return true
   }
-  if (payload.type === OFFER) {
-    const { sdp, offerId } = payload
-    const offer = new CachedOffer(offerId, sdp)
-    const requestor = ws._requestors.pop()
-    if (requestor) {
-      sendOffer(requestor, ws, offer)
-    } else {
-      ws._offers.push(offer)
-    }
-    return true
-  } else if (payload.type === ANSWER) {
+
+  if (payload.type === 'answer') {
     const { sdp, to } = payload
     const client = getClientById(clients, to)
-    if (client) {
-      delete client._acceptedOffers[to]
-      sendAnswer(client, ws._uuid, sdp)
-    }
+    if (!client || !authorize(ws, client)) return true
+    sendPayload(client, { type: 'answer', from: ws._uuid, sdp })
     return true
   }
-  if (type === CANDIDATE) {
-    const { candidate, offerId, to } = payload
+
+  if (type === 'candidate') {
+    const { candidate, connectionId, to } = payload
     if (candidate) {
-      if (offerId) {
-        const offer = ws._offers.find(({ id }) => offerId === id)
-        if (offer) {
-          offer.candidates.push(candidate)
+      if (connectionId) {
+        const existingChunk = ws._connectionChunks.find(({ id }) => connectionId === id)
+        if (existingChunk) {
+          existingChunk.signals.push({ type: 'candidate', candidate })
         } else {
           // the offer was already picked up by someone, find out who
-          const to = ws._acceptedOffers[offerId]
+          const to = ws._acceptedOffers[connectionId]
           const client = getClientById(clients, to)
-          if (client) {
-            sendCandidate(client, ws._uuid, candidate)
-          }
+          if (!client || !authorize(ws, client)) return true
+          sendPayload(client, { type: 'candidate', from: ws._uuid, candidate })
         }
       } else if (to) {
         // for re-negotiations
         const client = getClientById(clients, to)
-        if (client) {
-          sendCandidate(client, ws._uuid, candidate)
-        }
+        if (!client || !authorize(ws, client)) return true
+        sendPayload(client, { type: 'candidate', from: ws._uuid, candidate })
       }
     }
     return true
   }
+
   return false
 }
 
-export default handleOnMessage
+export default handleWRTCSignal

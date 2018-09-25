@@ -87,25 +87,6 @@ module.exports =
 /************************************************************************/
 /******/ ({
 
-/***/ "./src/constants.ts":
-/*!**************************!*\
-  !*** ./src/constants.ts ***!
-  \**************************/
-/*! exports provided: INIT, OFFER_REQUEST, OFFER_ACCEPTED */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "INIT", function() { return INIT; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "OFFER_REQUEST", function() { return OFFER_REQUEST; });
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "OFFER_ACCEPTED", function() { return OFFER_ACCEPTED; });
-const INIT = 'init';
-const OFFER_REQUEST = 'offerRequest';
-const OFFER_ACCEPTED = 'offerAccepted';
-
-
-/***/ }),
-
 /***/ "./src/server.ts":
 /*!***********************!*\
   !*** ./src/server.ts ***!
@@ -115,146 +96,130 @@ const OFFER_ACCEPTED = 'offerAccepted';
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./constants */ "./src/constants.ts");
-/* harmony import */ var _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @mattkrick/fast-rtc-peer */ "@mattkrick/fast-rtc-peer");
-/* harmony import */ var _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__);
-
-
-const sendAnswer = (ws, from, sdp) => {
-    ws.send(JSON.stringify({
-        type: _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["ANSWER"],
-        from,
-        sdp
-    }));
-};
-const sendCandidate = (ws, from, candidate) => {
-    if (!ws)
-        return;
-    ws.send(JSON.stringify({
-        type: _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["CANDIDATE"],
-        from,
-        candidate
-    }));
-};
-const sendOffer = (ws, fromWS, offer) => {
-    const { id, candidates, sdp } = offer;
-    const { _uuid: from } = fromWS;
-    fromWS.send(JSON.stringify({
-        type: _constants__WEBPACK_IMPORTED_MODULE_0__["OFFER_ACCEPTED"],
-        id,
-        from: ws._uuid
-    }));
-    fromWS._acceptedOffers[id] = ws._uuid;
-    ws.send(JSON.stringify({
-        type: _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["OFFER"],
-        from,
-        sdp,
-        candidates
-    }));
-};
-const requestOffer = (ws) => {
-    ws.send(JSON.stringify({
-        type: _constants__WEBPACK_IMPORTED_MODULE_0__["OFFER_REQUEST"]
-    }));
-};
-const getClientById = (clients, id) => {
-    for (const client of clients) {
-        if (client._uuid === id)
-            return client;
-    }
-    return null;
-};
-class CachedOffer {
-    constructor(offerId, sdp) {
-        this.id = offerId;
-        this.sdp = sdp;
-        this.candidates = [];
-        this.isComplete = false;
+class ConnectionChunk {
+    constructor(connectionId, sdp) {
+        this.id = connectionId;
+        this.signals = [{
+                type: 'offer',
+                sdp
+            }];
     }
 }
-const handleOnMessage = (clients, ws, payload) => {
+const defaultAuthorize = () => true;
+const sendPayload = (ws, payload) => {
+    if (!ws)
+        return;
+    ws.send(JSON.stringify(payload));
+};
+const sendChunk = (ws, fromWS, connectionChunk) => {
+    const { id, signals } = connectionChunk;
+    const { _uuid: from } = fromWS;
+    sendPayload(ws, {
+        type: 'accept',
+        signals,
+        from
+    });
+    sendPayload(fromWS, { type: 'offerAccepted', connectionId: id, from: ws._uuid });
+    fromWS._acceptedOffers[id] = ws._uuid;
+};
+const getClientById = (clients, id) => {
+    let foundClient = null;
+    clients.forEach((client) => {
+        if (!foundClient && client._uuid === id) {
+            foundClient = client;
+        }
+    });
+    return foundClient;
+};
+const handleWRTCSignal = (clients, ws, payload, authorize = defaultAuthorize) => {
     const { type } = payload;
-    if (payload.type === _constants__WEBPACK_IMPORTED_MODULE_0__["INIT"]) {
-        const { sdp, offerId, from } = payload;
+    if (payload.type === 'init') {
+        const { sdp, connectionId, from } = payload;
+        const existingClient = getClientById(clients, from);
+        if (existingClient)
+            return true;
         ws._uuid = from;
-        ws._offers = [new CachedOffer(offerId, sdp)];
+        ws._connectionChunks = [new ConnectionChunk(connectionId, sdp)];
         ws._requestors = [];
         ws._acceptedOffers = {};
-        for (const existingPeer of clients) {
-            if (existingPeer === ws || existingPeer.readyState !== ws.OPEN)
-                continue;
-            const offer = existingPeer._offers.pop();
-            if (!offer) {
+        ws._ready = true;
+        clients.forEach((existingPeer) => {
+            if (existingPeer === ws || !existingPeer._ready || !authorize(ws, existingPeer))
+                return;
+            const connectionChunk = existingPeer._connectionChunks.pop();
+            if (!connectionChunk) {
                 existingPeer._requestors.push(ws);
             }
             else {
-                sendOffer(ws, existingPeer, offer);
+                sendChunk(ws, existingPeer, connectionChunk);
             }
-            requestOffer(existingPeer);
-        }
+            sendPayload(existingPeer, { type: 'offerRequest' });
+        });
         return true;
     }
-    if (payload.type === _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["OFFER"]) {
-        const { sdp, offerId } = payload;
-        const offer = new CachedOffer(offerId, sdp);
-        const requestor = ws._requestors.pop();
-        if (requestor) {
-            sendOffer(requestor, ws, offer);
+    if (payload.type === 'offer') {
+        const { connectionId, sdp, to } = payload;
+        if (to) {
+            const client = getClientById(clients, to);
+            if (!client || !authorize(ws, client))
+                return true;
+            sendPayload(client, { type: 'offer', from: ws._uuid, sdp });
         }
-        else {
-            ws._offers.push(offer);
-        }
-        return true;
-    }
-    else if (payload.type === _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["ANSWER"]) {
-        const { sdp, to } = payload;
-        const client = getClientById(clients, to);
-        if (client) {
-            delete client._acceptedOffers[to];
-            sendAnswer(client, ws._uuid, sdp);
-        }
-        return true;
-    }
-    if (type === _mattkrick_fast_rtc_peer__WEBPACK_IMPORTED_MODULE_1__["CANDIDATE"]) {
-        const { candidate, offerId, to } = payload;
-        if (candidate) {
-            if (offerId) {
-                const offer = ws._offers.find(({ id }) => offerId === id);
-                if (offer) {
-                    offer.candidates.push(candidate);
+        else if (connectionId) {
+            const existingChunk = ws._connectionChunks.find((connectionChunk) => connectionChunk.id === connectionId);
+            if (existingChunk) {
+                existingChunk.signals.push({ type: 'offer', sdp });
+            }
+            else {
+                const connectionChunk = new ConnectionChunk(connectionId, sdp);
+                const requestor = ws._requestors.pop();
+                if (requestor) {
+                    sendChunk(requestor, ws, connectionChunk);
                 }
                 else {
-                    const to = ws._acceptedOffers[offerId];
+                    ws._connectionChunks.push(connectionChunk);
+                }
+            }
+        }
+        return true;
+    }
+    if (payload.type === 'answer') {
+        const { sdp, to } = payload;
+        const client = getClientById(clients, to);
+        if (!client || !authorize(ws, client))
+            return true;
+        sendPayload(client, { type: 'answer', from: ws._uuid, sdp });
+        return true;
+    }
+    if (type === 'candidate') {
+        const { candidate, connectionId, to } = payload;
+        if (candidate) {
+            if (connectionId) {
+                const existingChunk = ws._connectionChunks.find(({ id }) => connectionId === id);
+                if (existingChunk) {
+                    existingChunk.signals.push({ type: 'candidate', candidate });
+                }
+                else {
+                    const to = ws._acceptedOffers[connectionId];
                     const client = getClientById(clients, to);
-                    if (client) {
-                        sendCandidate(client, ws._uuid, candidate);
-                    }
+                    if (!client || !authorize(ws, client))
+                        return true;
+                    sendPayload(client, { type: 'candidate', from: ws._uuid, candidate });
                 }
             }
             else if (to) {
                 const client = getClientById(clients, to);
-                if (client) {
-                    sendCandidate(client, ws._uuid, candidate);
-                }
+                if (!client || !authorize(ws, client))
+                    return true;
+                sendPayload(client, { type: 'candidate', from: ws._uuid, candidate });
             }
         }
         return true;
     }
     return false;
 };
-/* harmony default export */ __webpack_exports__["default"] = (handleOnMessage);
+/* harmony default export */ __webpack_exports__["default"] = (handleWRTCSignal);
 
-
-/***/ }),
-
-/***/ "@mattkrick/fast-rtc-peer":
-/*!*******************************************!*\
-  !*** external "@mattkrick/fast-rtc-peer" ***!
-  \*******************************************/
-/*! no static exports found */
-/***/ (function(module, exports) {
-
-module.exports = require("@mattkrick/fast-rtc-peer");
 
 /***/ })
 
