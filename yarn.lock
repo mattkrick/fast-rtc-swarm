@@ -2,9 +2,10 @@
 # yarn lockfile v1
 
 
-"@mattkrick/fast-rtc-peer@^0.1.0":
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/@mattkrick/fast-rtc-peer/-/fast-rtc-peer-0.1.0.tgz#31c808d8ea5d183f5d631adfa16ae33ba13491d9"
+"@mattkrick/fast-rtc-peer@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@mattkrick/fast-rtc-peer/-/fast-rtc-peer-0.2.0.tgz#5f7fc1da99705e767c622eb2f8c23e77a9ad699a"
+  integrity sha512-Vup0UMlxufu3OnG1g5XgSqQqVke4YLNe2zY+jGex+5ukKg3p3klSr1ITFbm43cm+a5s13jejJl8tKDAhO/tIfw==
   dependencies:
     eventemitter3 "^3.1.0"
     shortid "^2.2.12"
