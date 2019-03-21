@@ -71,23 +71,26 @@ export interface FastRTCSwarmEvents {
   close: (peer: FastRTCPeer) => void
   error: (error: Error, peer?: FastRTCPeer) => void
   stream: (stream: MediaStream, name: string, peer: FastRTCPeer) => void
+  connection: (iceConnectionState: RTCIceConnectionState, peer: FastRTCPeer) => void
 }
 
 export type FastRTCSwarmEmitter = {new (): StrictEventEmitter<EventEmitter, FastRTCSwarmEvents>}
 
-interface Options extends PeerConfig {
+export interface SwarmConfig extends PeerConfig {
   peerBuffer?: number
   maxPeers?: number
   roomId?: string | number
 }
 
+type ConnectionId = string
+
 class FastRTCSwarm extends (EventEmitter as FastRTCSwarmEmitter) {
-  peers = new Map<string, FastRTCPeer>()
+  peers = new Map<ConnectionId, FastRTCPeer>()
   peerConfig: PeerConfig & {streams: StreamDict}
   peerBuffer: number
   maxPeers: number
 
-  constructor (opts: Options = {}) {
+  constructor (config: SwarmConfig = {}) {
     super()
     const {
       userId = FastRTCPeer.generateID(),
@@ -95,7 +98,7 @@ class FastRTCSwarm extends (EventEmitter as FastRTCSwarmEmitter) {
       maxPeers = 1024,
       roomId = '',
       ...peerConfig
-    } = opts
+    } = config
     this.peerBuffer = peerBuffer
     this.maxPeers = maxPeers
     this.peerConfig = { ...peerConfig, streams: FastRTCPeer.fromStreamShorthand(peerConfig.streams) }
@@ -136,6 +139,9 @@ class FastRTCSwarm extends (EventEmitter as FastRTCSwarmEmitter) {
     })
     peer.on('error', (error: Error, peer: FastRTCPeer) => {
       this.emit('error', error, peer)
+    })
+    peer.on('connection', (iceConnectionState: RTCIceConnectionState, peer: FastRTCPeer) => {
+      this.emit('connection', iceConnectionState, peer)
     })
     return peer
   }
@@ -207,6 +213,21 @@ class FastRTCSwarm extends (EventEmitter as FastRTCSwarmEmitter) {
   }
 
   muteTrack (name: string) {
+    // remove from config so new peers don't get the video
+    const { streams: configStreams } = this.peerConfig
+    Object.keys(configStreams).forEach((streamName) => {
+      const trackDict = configStreams[streamName]
+      Object.keys(trackDict).forEach((transceiverName) => {
+        if (transceiverName !== name) return
+        const entry = trackDict[transceiverName]
+        if (entry && typeof entry !== 'string') {
+          entry.track.stop()
+          // tell the hardware to turn off the light
+          entry.track.enabled = false
+        }
+      })
+    })
+
     this.peers.forEach((peer) => peer.muteTrack(name))
   }
 }
