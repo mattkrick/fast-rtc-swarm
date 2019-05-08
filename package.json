@@ -13,7 +13,7 @@
     "full-mesh"
   ],
   "main": "dist/FastRTCSwarm.js",
-  "typings": "dist/types/FastRTCSwarm.d.ts",
+  "typings": "dist/FastRTCSwarm.d.ts",
   "author": "Matt Krick <matt.krick@gmail.com>",
   "repository": {
     "type": "git",
