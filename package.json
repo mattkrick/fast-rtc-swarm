@@ -1,6 +1,6 @@
 {
   "name": "@mattkrick/fast-rtc-swarm",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "A full-mesh WebRTC swarm built on top of simple-peer",
   "keywords": [
     "WebRTC",
@@ -58,7 +58,7 @@
     "webpack-node-externals": "^1.7.2"
   },
   "dependencies": {
-    "@mattkrick/fast-rtc-peer": "^0.3.2",
+    "@mattkrick/fast-rtc-peer": "^0.4.0",
     "eventemitter3": "^3.1.0",
     "tslib": "^1.9.3"
   }
