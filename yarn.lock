@@ -2,10 +2,10 @@
 # yarn lockfile v1
 
 
-"@mattkrick/fast-rtc-peer@^0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@mattkrick/fast-rtc-peer/-/fast-rtc-peer-0.4.0.tgz#c063684a7d64f2043c0e05898ca88fbe0d8ba0ad"
-  integrity sha512-EIAhjhSkQ7Tc+bXF34jqVOQAe7x7f5InGpUWFab5fM14DHm9/4n1Nw7XBZ8TGNH7bKqqCBRiO1S5mX+2cW/nNg==
+"@mattkrick/fast-rtc-peer@^0.4.1":
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/@mattkrick/fast-rtc-peer/-/fast-rtc-peer-0.4.1.tgz#68a0c7053f19b088b1737f0d03c2ef7935de7dd4"
+  integrity sha512-BTQS3xEbFq9VD/AWYNACjQZDsh4Rczemukk0MvS9tXG4odoUZa3S1FFD8lBgnCp0pteB5rvYBggX/AaJCk2VHQ==
   dependencies:
     eventemitter3 "^3.1.0"
     shortid "^2.2.12"
@@ -408,9 +408,10 @@ base@^0.11.1:
     mixin-deep "^1.2.0"
     pascalcase "^0.1.1"
 
-big.js@^3.1.3:
-  version "3.2.0"
-  resolved "https://registry.yarnpkg.com/big.js/-/big.js-3.2.0.tgz#a5fc298b81b9e0dca2e458824784b65c52ba588e"
+big.js@^5.2.2:
+  version "5.2.2"
+  resolved "https://registry.yarnpkg.com/big.js/-/big.js-5.2.2.tgz#65f0af382f578bcdc742bd9c281e9cb2d7768328"
+  integrity sha512-vyL2OymJxmarO8gxMr0mhChsO9QGwhynfuu4+MHTAW6czfq9humCB7rKpUjDd9YUiDPU4mzpyupFSvOClAwbmQ==
 
 binary-extensions@^1.0.0:
   version "1.11.0"
@@ -996,9 +997,10 @@ elliptic@^6.0.0:
     minimalistic-assert "^1.0.0"
     minimalistic-crypto-utils "^1.0.0"
 
-emojis-list@^2.0.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/emojis-list/-/emojis-list-2.1.0.tgz#4daa4d9db00f9819880c79fa457ae5b09a1fd389"
+emojis-list@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/emojis-list/-/emojis-list-3.0.0.tgz#5570662046ad29e2e916e71aae260abdff4f6a78"
+  integrity sha512-/kyM18EfinwXZbno9FyUGeFh87KC8HRQBQGildHZbEuRyWFOmv1U10o9BBp8XVZDVNNuQKyIGIu5ZYAAXJ0V2Q==
 
 end-of-stream@^1.0.0, end-of-stream@^1.1.0:
   version "1.4.1"
@@ -1779,9 +1781,12 @@ json-schema-traverse@^0.4.1:
   version "0.4.1"
   resolved "https://registry.yarnpkg.com/json-schema-traverse/-/json-schema-traverse-0.4.1.tgz#69f6a87d9513ab8bb8fe63bdb0979c448e684660"
 
-json5@^0.5.0:
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/json5/-/json5-0.5.1.tgz#1eade7acc012034ad84e2396767ead9fa5495821"
+json5@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/json5/-/json5-1.0.1.tgz#779fb0018604fa854eacbf6252180d83543e3dbe"
+  integrity sha512-aKS4WQjPenRxiQsC93MNfjx+nbF4PAdYzmd/1JIj8HYzqfbu86beTuNgXDzPknWk0n0uARlyewZo4s++ES36Ow==
+  dependencies:
+    minimist "^1.2.0"
 
 jsonfile@^4.0.0:
   version "4.0.0"
@@ -1903,12 +1908,13 @@ loader-runner@^2.3.0:
   resolved "https://registry.yarnpkg.com/loader-runner/-/loader-runner-2.3.0.tgz#f482aea82d543e07921700d5a46ef26fdac6b8a2"
 
 loader-utils@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/loader-utils/-/loader-utils-1.1.0.tgz#c98aef488bcceda2ffb5e2de646d6a754429f5cd"
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/loader-utils/-/loader-utils-1.4.1.tgz#278ad7006660bccc4d2c0c1578e17c5c78d5c0e0"
+  integrity sha512-1Qo97Y2oKaU+Ro2xnDMR26g1BwMT29jNbem1EvcujW2jqt+j5COXyscjM7bLQkM9HaxI7pkWeW7gnI072yMI9Q==
   dependencies:
-    big.js "^3.1.3"
-    emojis-list "^2.0.0"
-    json5 "^0.5.0"
+    big.js "^5.2.2"
+    emojis-list "^3.0.0"
+    json5 "^1.0.1"
 
 locate-path@^2.0.0:
   version "2.0.0"
@@ -2069,8 +2075,9 @@ minimist@0.0.8:
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-0.0.8.tgz#857fcabfc3397d2625b8228262e86aa7a011b05d"
 
 minimist@^1.2.0:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.0.tgz#a35008b20f41383eec1fb914f4cd5df79a264284"
+  version "1.2.7"
+  resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.7.tgz#daa1c4d91f507390437c6a8bc01078e7000c4d18"
+  integrity sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==
 
 minimist@~0.0.1:
   version "0.0.10"
@@ -2338,7 +2345,7 @@ once@^1.3.0, once@^1.3.1, once@^1.4.0:
 
 onetime@^1.0.0:
   version "1.1.0"
-  resolved "http://registry.npmjs.org/onetime/-/onetime-1.1.0.tgz#a1f7838f8314c516f05ecefcbc4ccfe04b4ed789"
+  resolved "https://registry.npmjs.org/onetime/-/onetime-1.1.0.tgz#a1f7838f8314c516f05ecefcbc4ccfe04b4ed789"
 
 onetime@^2.0.0:
   version "2.0.1"
@@ -3423,7 +3430,7 @@ webpack-log@^1.2.0:
 
 webpack-node-externals@^1.7.2:
   version "1.7.2"
-  resolved "http://registry.npmjs.org/webpack-node-externals/-/webpack-node-externals-1.7.2.tgz#6e1ee79ac67c070402ba700ef033a9b8d52ac4e3"
+  resolved "https://registry.npmjs.org/webpack-node-externals/-/webpack-node-externals-1.7.2.tgz#6e1ee79ac67c070402ba700ef033a9b8d52ac4e3"
 
 webpack-sources@^1.0.1, webpack-sources@^1.1.0:
   version "1.1.0"
